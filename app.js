@@ -177,7 +177,20 @@ const STATE = {
     currentArticlePage: 1,
     carouselIndex: 0,
     autosaveTimer: null,
-    lastSaved: null
+    lastSaved: null,
+    codeLanguages: [
+        { name: 'JavaScript', value: 'javascript', prism: 'javascript' },
+        { name: 'Python', value: 'python', prism: 'python' },
+        { name: 'Java', value: 'java', prism: 'java' },
+        { name: 'C++', value: 'cpp', prism: 'cpp' },
+        { name: 'HTML', value: 'html', prism: 'markup' },
+        { name: 'CSS', value: 'css', prism: 'css' },
+        { name: 'SQL', value: 'sql', prism: 'sql' },
+        { name: 'Bash', value: 'bash', prism: 'bash' },
+        { name: 'JSON', value: 'json', prism: 'json' },
+        { name: 'XML', value: 'xml', prism: 'xml' },
+        { name: 'Plain Text', value: 'plaintext', prism: 'plaintext' }
+    ]
 };
 
 // Utility Functions
@@ -413,12 +426,163 @@ function updateMetaDescCounter(textarea) {
     }
 }
 
+function showCodeBlockModal() {
+    const modal = document.createElement('div');
+    modal.className = 'code-modal';
+    modal.innerHTML = `
+        <div class="code-modal-content">
+            <div class="code-modal-header">
+                <h2 style="font-size: 20px; font-weight: 600; margin: 0;">Insert Code Block</h2>
+                <button onclick="this.closest('.code-modal').remove()" style="padding: 6px 12px; background: white; border: 1px solid var(--color-border); border-radius: 6px; cursor: pointer; font-size: 14px;">✕</button>
+            </div>
+            <div class="code-modal-body">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px;">Language</label>
+                    <select id="codeLanguageSelect" style="width: 100%; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 14px; background: white; cursor: pointer;">
+                        ${STATE.codeLanguages.map(lang => `<option value="${lang.value}">${lang.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px;">Code</label>
+                    <textarea id="codeTextarea" class="code-textarea" placeholder="Paste or type your code here...\n\nPress Tab to indent\nPress Shift+Tab to outdent"></textarea>
+                </div>
+            </div>
+            <div class="code-modal-footer">
+                <button onclick="this.closest('.code-modal').remove()" style="padding: 10px 20px; border: 1px solid var(--color-border); background: white; border-radius: 6px; cursor: pointer; font-size: 14px;">Cancel</button>
+                <button onclick="insertCodeBlock()" style="padding: 10px 24px; background: var(--color-primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">Insert Code Block</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    const textarea = modal.querySelector('#codeTextarea');
+    textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const value = textarea.value;
+            
+            if (e.shiftKey) {
+                const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+                if (value.substring(lineStart, lineStart + 4) === '    ') {
+                    textarea.value = value.substring(0, lineStart) + value.substring(lineStart + 4);
+                    textarea.selectionStart = textarea.selectionEnd = start - 4;
+                }
+            } else {
+                textarea.value = value.substring(0, start) + '    ' + value.substring(end);
+                textarea.selectionStart = textarea.selectionEnd = start + 4;
+            }
+        }
+    });
+    
+    modal.onclick = (e) => {
+        if (e.target === modal) modal.remove();
+    };
+}
+
+function insertCodeBlock() {
+    const languageSelect = document.getElementById('codeLanguageSelect');
+    const codeTextarea = document.getElementById('codeTextarea');
+    const editor = document.getElementById('editor');
+    
+    if (!languageSelect || !codeTextarea || !editor) return;
+    
+    const language = languageSelect.value;
+    const code = codeTextarea.value;
+    
+    if (!code.trim()) {
+        showToast('Please enter some code', 'error');
+        return;
+    }
+    
+    const languageObj = STATE.codeLanguages.find(l => l.value === language);
+    const languageName = languageObj ? languageObj.name : language;
+    const prismLang = languageObj ? languageObj.prism : language;
+    
+    const escapedCode = code
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    
+    const codeBlockId = 'code-block-' + Date.now();
+    const codeBlockHTML = `
+        <div class="code-block-container" data-language="${language}" data-code-id="${codeBlockId}">
+            <div class="code-block-header">
+                <span class="code-block-language">${languageName}</span>
+                <button class="code-block-copy-btn" onclick="copyCodeBlock('${codeBlockId}')">📋 Copy</button>
+            </div>
+            <div class="code-block-content">
+                <pre class="line-numbers"><code class="language-${prismLang}">${escapedCode}</code></pre>
+            </div>
+        </div>
+        <p><br></p>
+    `;
+    
+    editor.focus();
+    document.execCommand('insertHTML', false, codeBlockHTML);
+    
+    document.querySelector('.code-modal').remove();
+    
+    setTimeout(() => {
+        if (window.Prism) {
+            Prism.highlightAll();
+        }
+    }, 100);
+    
+    showToast('Code block inserted successfully!');
+}
+
+function copyCodeBlock(codeBlockId) {
+    const codeBlock = document.querySelector(`[data-code-id="${codeBlockId}"]`);
+    if (!codeBlock) return;
+    
+    const codeElement = codeBlock.querySelector('code');
+    if (!codeElement) return;
+    
+    const code = codeElement.textContent;
+    
+    const textarea = document.createElement('textarea');
+    textarea.value = code;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    
+    try {
+        document.execCommand('copy');
+        const btn = codeBlock.querySelector('.code-block-copy-btn');
+        if (btn) {
+            const originalText = btn.textContent;
+            btn.textContent = '✓ Copied!';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.classList.remove('copied');
+            }, 2000);
+        }
+        showToast('Code copied to clipboard!');
+    } catch (err) {
+        showToast('Failed to copy code', 'error');
+    }
+    
+    document.body.removeChild(textarea);
+}
+
 function showArticlePreview() {
     const form = document.getElementById('articleForm');
     if (!form) return;
     
     const formData = getFormData(form);
     const category = STATE.categories.find(c => c.name === formData.category);
+    
+    setTimeout(() => {
+        if (window.Prism) {
+            Prism.highlightAll();
+        }
+    }, 100);
     
     const previewHTML = `
         <div class="modal" onclick="if(event.target === this) this.remove()">
@@ -684,6 +848,12 @@ function ArticlePage() {
     
     const category = STATE.categories.find(c => c.name === article.category);
     const related = getRelatedArticles(article);
+    
+    setTimeout(() => {
+        if (window.Prism) {
+            Prism.highlightAll();
+        }
+    }, 100);
     
     return `
         ${Header()}
@@ -952,6 +1122,12 @@ function AdminEditArticle() {
             if (editor) {
                 editor.addEventListener('input', updateWordCount);
                 editor.addEventListener('paste', () => setTimeout(updateWordCount, 10));
+                editor.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey && e.altKey && e.key === 'c') {
+                        e.preventDefault();
+                        showCodeBlockModal();
+                    }
+                });
                 updateWordCount();
             }
             
@@ -1053,6 +1229,7 @@ function AdminEditArticle() {
                             <button type="button" onclick="document.execCommand('insertUnorderedList')" title="Bullet List">• List</button>
                             <button type="button" onclick="document.execCommand('insertOrderedList')" title="Numbered List">1. List</button>
                             <button type="button" onclick="document.execCommand('formatBlock', false, 'blockquote')" title="Blockquote">❝ Quote</button>
+                            <button type="button" onclick="showCodeBlockModal()" title="Insert Code Block (Ctrl+Alt+C)" style="font-weight: 600;">&lt;/&gt; Code</button>
                             <button type="button" onclick="const url = prompt('Enter URL:'); if(url) document.execCommand('createLink', false, url);" title="Insert Link">🔗 Link</button>
                             <button type="button" onclick="const url = prompt('Enter image URL:'); if(url) document.execCommand('insertImage', false, url);" title="Insert Image">🖼️ Image</button>
                             <button type="button" onclick="document.execCommand('insertHorizontalRule')" title="Horizontal Rule">—</button>

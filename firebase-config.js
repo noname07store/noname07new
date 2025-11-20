@@ -10,6 +10,7 @@
   const firebaseConfig = {
     apiKey: "AIzaSyAgU5ZzsMR7FF0abXp761JtO_bx-YtdMQY",
     authDomain: "noname07new-dab1b.firebaseapp.com",
+    databaseURL: "https://noname07new-dab1b.firebaseio.com"
     projectId: "noname07new-dab1b",
     storageBucket: "noname07new-dab1b.firebasestorage.app",
     messagingSenderId: "87853692032",
